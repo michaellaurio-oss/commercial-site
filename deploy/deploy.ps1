@@ -166,15 +166,29 @@ function Save-Backup([string]$dest) {
 try {
     # Safety check: the FTP account must serve THIS site. Once a site is deployed its app/site.php is
     # on the server; if it differs from ours, the .env points at another site's account.
+    # Asked with --head first (no data connection, which this host sometimes leaves hanging), with
+    # short time limits and no retries, so a wrong login or a missing file answers in seconds.
     # (No app/site.php yet = first deploy of this site, or the first since sites\ existed: fine.)
+    Write-Host 'Checking the FTP login...'
+    $quick = @('--ssl-reqd', '--netrc-file', $netrc, '--silent', '--show-error', '--connect-timeout', '20', '--max-time', '45')
     $ErrorActionPreference = 'Continue'
-    $remoteSite = & $curl @common ($base + 'app/site.php') 2>$null
+    & $curl @quick '--head' ($base + 'app/site.php') 2>$null | Out-Null
+    $code = $LASTEXITCODE
+    $remoteSite = $null
+    if ($code -eq 0) { $remoteSite = & $curl @quick ($base + 'app/site.php') 2>$null; $code = $LASTEXITCODE }
     $ErrorActionPreference = 'Stop'
-    if ($LASTEXITCODE -eq 0 -and $remoteSite) {
+    switch ($code) {
+        67 { throw "The FTP server refused the login in sites\$Site\.env (check FTP_USER / FTP_PASSWORD)." }
+        { $_ -in 6, 7, 28, 35 } { throw "Could not reach the FTP server (curl exit $code). Check the internet connection and try again." }
+    }
+    if ($code -eq 0 -and $remoteSite) {
         $norm = { param($t) (($t -join "`n") -replace "`r", '').Trim() }
         if ((& $norm $remoteSite) -ne (& $norm (Get-Content (Join-Path $siteDir 'site.php')))) {
             throw "The FTP account in sites\$Site\.env serves a different site (its app/site.php doesn't match sites\$Site\site.php). Nothing was changed."
         }
+        Write-Host "  OK: this account serves $Site."
+    } else {
+        Write-Host "  OK: logged in (no site deployed here yet)."
     }
 
     if ($Backup) {
