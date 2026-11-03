@@ -5,6 +5,10 @@ Deploy the site to the web host over FTPS (encrypted FTP).
   powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -DryRun    list what would be uploaded
   powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -Full      upload everything again
   powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -Backup    download the live database + photos to backups\
+  powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -Restore 20261103-1130
+        put the live site's data back exactly as it was in backups\20261103-1130\: database, listing
+        photos, home page pictures, stock photos (files added since are deleted). Takes a
+        "before-restore" backup of the current state first and asks you to type RESTORE.
   powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -InitDb    first deploy only: upload deploy\live-initial.db
   powershell -ExecutionPolicy Bypass -File deploy\deploy.ps1 -Config    upload deploy\config.local.php (admin password etc.)
 
@@ -17,6 +21,8 @@ param(
     [switch]$Backup,
     [switch]$InitDb,
     [switch]$Config,
+    # A folder name under backups\ (or a full path) made by -Backup.
+    [string]$Restore,
     # The FTP server's TLS certificate is issued to this name (same server as ftp.the-laurios.com).
     [string]$TlsHost = 'svr201.fastwebhost.com'
 )
@@ -49,9 +55,56 @@ function Get-RemoteList([string]$dir) {
     return @($out | Where-Object { $_ -and $_ -ne '.' -and $_ -ne '..' })
 }
 
-try {
-    if ($Backup) {
-        $dest = Join-Path $root ('backups\' + (Get-Date -Format 'yyyyMMdd-HHmm'))
+# Name -> size of the files (and folders, with -Dirs) in a remote folder, from the FTP LIST output.
+function Get-RemoteSizes([string]$dir, [switch]$Dirs) {
+    $out = & $curl @common ($base + $dir) 2>$null
+    $map = @{}
+    if ($LASTEXITCODE -ne 0) { return $map }
+    foreach ($line in $out) {
+        if ($line -match '^(?<t>[-dl])\S*\s+\d+\s+\S+\s+\S+\s+(?<size>\d+)\s+\w{3}\s+\d+\s+[\d:]+\s+(?<name>.+)$') {
+            $name = $matches['name']
+            if ($name -eq '.' -or $name -eq '..' -or $name -like '.*') { continue }
+            if (($matches['t'] -eq 'd') -eq [bool]$Dirs) { $map[$name] = [long]$matches['size'] }
+        }
+    }
+    return $map
+}
+# Upload one file and check the size on the server afterwards (3 tries, like the normal deploy).
+function Send-File([string]$localPath, [string]$rel) {
+    $size = (Get-Item -LiteralPath $localPath -Force).Length
+    for ($try = 1; $try -le 3; $try++) {
+        & $curl @common '--ftp-create-dirs' '-T' $localPath ($base + $rel) 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $head = & $curl @common '--head' ($base + $rel) 2>$null
+            if ($head | Where-Object { $_ -match "^Content-Length:\s*$size\s*$" }) { return }
+        }
+        Start-Sleep -Seconds 2
+    }
+    throw "Upload failed: $rel. Run the restore again."
+}
+# Delete remote files (paths from the FTP home), 30 per connection.
+function Remove-Remote([string[]]$paths, [string]$cmd = 'DELE') {
+    for ($i = 0; $i -lt $paths.Count; $i += 30) {
+        $q = @()
+        foreach ($p in $paths[$i..([Math]::Min($i + 29, $paths.Count - 1))]) { $q += @('-Q', "$cmd $p") }
+        Invoke-Curl (@('--list-only', '-o', 'NUL') + $q + @($base))
+    }
+}
+# Make a remote folder hold exactly the files of a local folder (dot files such as .htaccess are left alone).
+function Sync-Folder([string]$localDir, [string]$remoteDir) {
+    $remote = Get-RemoteSizes $remoteDir
+    $local = @{}
+    if (Test-Path $localDir) { Get-ChildItem -LiteralPath $localDir -File | Where-Object { $_.Name -notlike '.*' } | ForEach-Object { $local[$_.Name] = $_ } }
+    $gone = @($remote.Keys | Where-Object { -not $local.ContainsKey($_) } | ForEach-Object { $remoteDir + $_ })
+    if ($gone.Count) { Remove-Remote $gone; Write-Host ("  {0}: deleted {1} file(s) added since the backup" -f $remoteDir, $gone.Count) }
+    $sent = 0
+    foreach ($name in $local.Keys) {
+        if ($remote[$name] -ne $local[$name].Length) { Send-File $local[$name].FullName ($remoteDir + $name); $sent++ }
+    }
+    if ($sent) { Write-Host ("  {0}: put back {1} file(s)" -f $remoteDir, $sent) }
+}
+
+function Save-Backup([string]$dest) {
         New-Item -ItemType Directory -Force (Join-Path $dest 'photos') | Out-Null
         Write-Host "Backing up to $dest"
         Invoke-Curl @('-o', (Join-Path $dest 'gun_specs.db'), ($base + 'data/gun_specs.db'))
@@ -82,6 +135,66 @@ try {
         }
         if ($pairs.Count) { Invoke-Curl $pairs }
         Write-Host "Done: database + $n files (listing photos, home page pictures, stock photos)."
+}
+
+try {
+    if ($Backup) {
+        Save-Backup (Join-Path $root ('backups\' + (Get-Date -Format 'yyyyMMdd-HHmm')))
+        return
+    }
+
+    if ($Restore) {
+        $src = $Restore
+        if (-not [System.IO.Path]::IsPathRooted($src)) { $src = Join-Path $root ('backups\' + $src) }
+        $db = Join-Path $src 'gun_specs.db'
+        if (-not (Test-Path $db)) { throw "No gun_specs.db in $src" }
+        $fs = [System.IO.File]::OpenRead($db); $hdr = New-Object byte[] 16; [void]$fs.Read($hdr, 0, 16); $fs.Close()
+        if ([System.Text.Encoding]::ASCII.GetString($hdr, 0, 15) -ne 'SQLite format 3') { throw "$db is not a SQLite database" }
+        foreach ($d in 'photos', 'hero', 'stock-photos') { if (-not (Test-Path (Join-Path $src $d))) { throw "$src has no $d folder (not a full -Backup)" } }
+        Write-Host "This puts the LIVE site's database, listing photos, home page pictures and stock photos"
+        Write-Host "back to $src. Everything changed in the admin since then is lost (listings, accounts,"
+        Write-Host "messages, activity log). A backup of the current state is taken first."
+        if ((Read-Host 'Type RESTORE to go ahead') -cne 'RESTORE') { Write-Host 'Cancelled.'; return }
+        # As in the normal deploy: with 'Stop', curl's stderr would abort Windows PowerShell 5.1
+        # instead of retrying. Failures are still caught through curl's exit code.
+        $ErrorActionPreference = 'Continue'
+
+        Save-Backup (Join-Path $root ('backups\' + (Get-Date -Format 'yyyyMMdd-HHmm') + '-before-restore'))
+
+        # Database: upload under a temporary name, then rename over the live file so no visitor ever
+        # reads a half-uploaded database. A leftover rollback journal would be applied to the restored
+        # file and corrupt it, so it is removed too.
+        Write-Host 'Restoring the database...'
+        Send-File $db 'data/gun_specs.restoring'
+        & $curl @common '--list-only' '-o' 'NUL' '-Q' 'RNFR data/gun_specs.restoring' '-Q' 'RNTO data/gun_specs.db' $base 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            # The server would not rename over an existing file: upload straight over it instead.
+            Send-File $db 'data/gun_specs.db'
+            Remove-Remote @('data/gun_specs.restoring')
+        }
+        & $curl @common '--list-only' '-o' 'NUL' '-Q' '*DELE data/gun_specs.db-journal' $base 2>$null
+        $head = & $curl @common '--head' ($base + 'data/gun_specs.db') 2>$null
+        $size = (Get-Item -LiteralPath $db).Length
+        if (-not ($head | Where-Object { $_ -match "^Content-Length:\s*$size\s*$" })) { throw 'The live database size does not match the backup. Run the restore again.' }
+
+        Write-Host 'Restoring listing photos...'
+        $localPhotos = Join-Path $src 'photos'
+        $keepDirs = @{}
+        Get-ChildItem -LiteralPath $localPhotos -Directory | ForEach-Object { $keepDirs[$_.Name] = $true }
+        foreach ($dir in (Get-RemoteSizes 'photos/' -Dirs).Keys) {
+            if ($keepDirs.ContainsKey($dir)) { continue }
+            $files = @((Get-RemoteSizes "photos/$dir/").Keys | ForEach-Object { "photos/$dir/$_" })
+            if ($files.Count) { Remove-Remote $files }
+            Remove-Remote @("photos/$dir") 'RMD'
+            Write-Host "  photos/: removed $dir (added since the backup)"
+        }
+        foreach ($dir in $keepDirs.Keys) { Sync-Folder (Join-Path $localPhotos $dir) "photos/$dir/" }
+
+        Write-Host 'Restoring home page pictures...'
+        Sync-Folder (Join-Path $src 'hero') 'assets/hero/'
+        Write-Host 'Restoring stock photos...'
+        Sync-Folder (Join-Path $src 'stock-photos') 'stock-photos/'
+        Write-Host "Restore complete. Anyone still signed in to the admin with an account that no longer exists is signed out."
         return
     }
 

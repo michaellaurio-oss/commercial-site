@@ -37,5 +37,5 @@ Needs PHP 8.1+ with `pdo_sqlite` (and `gd` for demo photos / uploads).
 | `schema.sql` | Full database schema. `demo_seed.sql` is sample data. |
 | `public/app/migrations/` | Changes to an existing (live) database, applied automatically on admin page load. |
 | `dev/` | Local tools: `build_db.php`, `router.php`, demo and stock photo scripts. |
-| `deploy/` | FTPS deploy script (`deploy.ps1`) and admin password tool. |
+| `deploy/` | FTPS deploy script (`deploy.ps1`: deploy, `-Backup` the live data, `-Restore` a backup) and admin password tool. |
 | `design/` | Original page designs, for reference. |
