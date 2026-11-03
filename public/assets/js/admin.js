@@ -200,14 +200,28 @@
     }).catch(function () { return file; });
   }
 
+  // Photos picked so far. Each tap on the file box (e.g. "Take Photo" on a phone, one shot per tap)
+  // ADDS to this list instead of replacing it, until the form is saved. Browsers that can't
+  // set input.files (DataTransfer) keep the old behaviour: the last pick replaces the earlier ones.
+  var pending = [];
+  var canKeep = (function () { try { return !!new DataTransfer().items; } catch (e) { return false; } })();
+
+  function isImage(f) { return /^image\//.test(f.type); }
   function chosen() {
-    return Array.prototype.slice.call(input.files || []).filter(function (f) { return /^image\//.test(f.type); });
+    return canKeep ? pending.slice() : Array.prototype.slice.call(input.files || []).filter(isImage);
+  }
+  // Put the list back into the file box, so a plain (non-script) submit sends the same photos.
+  function sync() {
+    if (!canKeep) return;
+    var dt = new DataTransfer();
+    pending.forEach(function (f) { dt.items.add(f); });
+    input.files = dt.files;
   }
 
-  input.addEventListener('change', function () {
+  function render() {
     picks.innerHTML = '';
     var files = chosen();
-    files.forEach(function (f) {
+    files.forEach(function (f, i) {
       var fig = document.createElement('figure');
       var img = document.createElement('img');
       img.alt = '';
@@ -216,9 +230,31 @@
       cap.textContent = f.name;
       fig.appendChild(img);
       fig.appendChild(cap);
+      if (canKeep) {
+        var rm = document.createElement('button');
+        rm.type = 'button';
+        rm.className = 'link-btn small';
+        rm.textContent = 'Remove';
+        rm.setAttribute('aria-label', 'Remove photo ' + (i + 1));
+        rm.addEventListener('click', function () { pending.splice(i, 1); sync(); render(); });
+        fig.appendChild(rm);
+      }
       picks.appendChild(fig);
     });
-    status.textContent = files.length ? files.length + ' photo' + (files.length === 1 ? '' : 's') + ' will be added when you save.' : '';
+    status.textContent = files.length
+      ? files.length + ' photo' + (files.length === 1 ? '' : 's') + ' will be added when you save.' + (canKeep ? ' Tap the box again to add more.' : '')
+      : '';
+  }
+
+  input.addEventListener('change', function () {
+    if (canKeep) {
+      Array.prototype.slice.call(input.files || []).filter(isImage).forEach(function (f) {
+        var dup = pending.some(function (p) { return p.name === f.name && p.size === f.size && p.lastModified === f.lastModified; });
+        if (!dup) pending.push(f);
+      });
+      sync();   // also restores the list if the picker was cancelled and the browser emptied the box
+    }
+    render();
   });
 
   // Remember which button was pressed ("Create listing" or "... and add another").
