@@ -43,7 +43,10 @@ foreach ($k in 'FTP_USER', 'FTP_PASSWORD') { if (-not $cfg[$k]) { throw "$k miss
 $netrc = Join-Path $env:TEMP ('gunsite-' + [guid]::NewGuid().ToString('N') + '.netrc')
 Set-Content -Path $netrc -Encoding ascii -Value ("machine $TlsHost login " + $cfg['FTP_USER'] + ' password ' + $cfg['FTP_PASSWORD'])
 $base = "ftp://$TlsHost/"
-$common = @('--ssl-reqd', '--netrc-file', $netrc, '--silent', '--show-error', '--retry', '2', '--connect-timeout', '30')
+# --speed-limit/--speed-time: a transfer that moves nothing for 60 s is dropped and retried. Pure-FTPd
+# sometimes leaves a data connection hanging, and without this curl waits forever (2026-11-03).
+# --retry-all-errors: also retry when the host resets the connection (curl exit 56), which --retry alone doesn't.
+$common = @('--ssl-reqd', '--netrc-file', $netrc, '--silent', '--show-error', '--retry', '3', '--retry-delay', '3', '--retry-all-errors', '--connect-timeout', '30', '--speed-limit', '1', '--speed-time', '60')
 
 function Invoke-Curl([string[]]$curlArgs) {
     & $curl @common @curlArgs
@@ -134,6 +137,8 @@ function Save-Backup([string]$dest) {
             if ($pairs.Count -ge 60) { Invoke-Curl $pairs; $pairs = @() }
         }
         if ($pairs.Count) { Invoke-Curl $pairs }
+        # -Restore only accepts a backup that got this far (a stalled or cancelled one has no marker).
+        Set-Content -Path (Join-Path $dest 'backup-complete.txt') -Encoding ascii -Value ("Finished " + (Get-Date -Format 's') + ", $n files")
         Write-Host "Done: database + $n files (listing photos, home page pictures, stock photos)."
 }
 
@@ -150,7 +155,7 @@ try {
         if (-not (Test-Path $db)) { throw "No gun_specs.db in $src" }
         $fs = [System.IO.File]::OpenRead($db); $hdr = New-Object byte[] 16; [void]$fs.Read($hdr, 0, 16); $fs.Close()
         if ([System.Text.Encoding]::ASCII.GetString($hdr, 0, 15) -ne 'SQLite format 3') { throw "$db is not a SQLite database" }
-        foreach ($d in 'photos', 'hero', 'stock-photos') { if (-not (Test-Path (Join-Path $src $d))) { throw "$src has no $d folder (not a full -Backup)" } }
+        if (-not (Test-Path (Join-Path $src 'backup-complete.txt'))) { throw "$src is not a finished backup (no backup-complete.txt). Pick another, or run -Backup again." }
         Write-Host "This puts the LIVE site's database, listing photos, home page pictures and stock photos"
         Write-Host "back to $src. Everything changed in the admin since then is lost (listings, accounts,"
         Write-Host "messages, activity log). A backup of the current state is taken first."
