@@ -1,6 +1,14 @@
 # Secrets
 .env
 .env.*
+# Per-site secrets and server state (sites/<site>/): FTP login, admin recovery password,
+# first database, deploy state, local database, home page pictures (taken from the store's site)
+sites/*/.env
+sites/*/config.local.php
+sites/*/live-initial.db
+sites/*/.deploy-state.json
+sites/*/data/
+sites/*/hero/*
 
 # OS / editor
 Thumbs.db

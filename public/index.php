@@ -9,7 +9,7 @@ foreach ($all as $l) {
         $counts[$l['category']]++;
     }
 }
-// The shop's own pictures: Admin > Home page (assets/hero/order.json), else shop.php 'hero_images'.
+// The shop's own pictures: Admin > Home page (assets/hero/order.json), else the site's shop.php 'hero_images'.
 require_once __DIR__ . '/app/hero.php';
 $heroSlides = array_map(fn($f) => asset('assets/hero/' . $f), hero_shown());
 $heroPhoto = null;

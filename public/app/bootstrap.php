@@ -6,8 +6,17 @@ declare(strict_types=1);
 // Buffer page output so headers (session cookie, redirects) can still be sent after HTML starts.
 ob_start();
 
+/**
+ * A per-site file (site.php, shop.php). On the server deploy.ps1 uploads them into app/ from
+ * sites/<site>/; locally dev/router.php defines SITE_DIR = sites/<site> so they are read there.
+ */
+function site_file(string $name): string
+{
+    return (defined('SITE_DIR') ? SITE_DIR : __DIR__) . '/' . $name;
+}
+
 $GLOBALS['config'] = require __DIR__ . '/config.php';
-$GLOBALS['shop']   = require __DIR__ . '/shop.php';
+$GLOBALS['shop']   = require site_file('shop.php');
 
 if (config('debug')) {
     ini_set('display_errors', '1');

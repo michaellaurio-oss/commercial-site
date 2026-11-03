@@ -1,11 +1,20 @@
 <?php
 // Local tool to set the admin password in a browser (same way you'll type it at login).
-// Run:   php -S 127.0.0.1:8765 deploy/password-tool.php     then open http://127.0.0.1:8765
-// Writes deploy/config.local.php (only a hash of the password). Then upload it with:
-//        powershell -ExecutionPolicy Bypass -File deploy/deploy.ps1 -Config
+// Run:   php -S 127.0.0.1:8765 deploy/password-tool.php                 (Crosshairs site)
+//        SITE=glendale php -S 127.0.0.1:8765 deploy/password-tool.php   (another site)
+//        then open http://127.0.0.1:8765
+// Writes sites/<site>/config.local.php (only a hash of the password). Then upload it with:
+//        powershell -ExecutionPolicy Bypass -File deploy/deploy.ps1 -Site <site> -Config
 
 $origin = 'http://127.0.0.1:8765';
-$file = __DIR__ . '/config.local.php';
+$site = getenv('SITE') ?: 'crosshairs';
+if (!preg_match('~^[a-z0-9-]+$~', $site) || !is_file(__DIR__ . "/../sites/$site/site.php")) {
+    exit("Unknown site '" . htmlspecialchars($site) . "' (no sites/$site/site.php)");
+}
+$siteCfg = require __DIR__ . "/../sites/$site/site.php";
+$shopName = (string)((require __DIR__ . "/../sites/$site/shop.php")['name'] ?? $site);
+$adminUrl = rtrim($siteCfg['site_url'], '/') . $siteCfg['base_url'] . 'admin/';
+$file = __DIR__ . "/../sites/$site/config.local.php";
 $existing = is_file($file) ? (require $file) : [];
 $msg = '';
 $ok = false;
@@ -42,7 +51,7 @@ $contact = (string)($_POST['contact'] ?? ($existing['contact_to'] ?? ''));
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Set admin password</title>
+<title>Set admin password – <?= htmlspecialchars($shopName) ?></title>
 <style>
 body{font-family:system-ui,sans-serif;background:#F7F6F3;color:#16181A;margin:0;padding:40px 16px}
 main{max-width:460px;margin:0 auto;background:#fff;border:1px solid #E3E1DC;border-radius:12px;padding:28px}
@@ -54,9 +63,10 @@ code{background:#F1EFEA;padding:2px 6px;border-radius:4px}
 </style></head>
 <body><main>
 <h1>Set admin password</h1>
+<p><strong><?= htmlspecialchars($shopName) ?></strong> (site <code><?= htmlspecialchars($site) ?></code>)</p>
 <p>Runs only on this computer. Only a scrambled hash of the password is saved.</p>
 <?php if ($ok): ?>
-  <div class="msg ok"><strong>Saved.</strong> Now upload it: in Claude Code type<br><code>! powershell -ExecutionPolicy Bypass -File deploy/deploy.ps1 -Config</code><br>then log in at <a href="https://the-laurios.com/gun-site/admin/">the-laurios.com/gun-site/admin/</a>.</div>
+  <div class="msg ok"><strong>Saved.</strong> Now upload it: in Claude Code type<br><code>! powershell -ExecutionPolicy Bypass -File deploy/deploy.ps1 -Site <?= htmlspecialchars($site) ?> -Config</code><br>then log in at <a href="<?= htmlspecialchars($adminUrl) ?>"><?= htmlspecialchars(preg_replace('~^https?://~', '', $adminUrl)) ?></a>.</div>
 <?php else: ?>
   <?php if ($msg): ?><div class="msg err" role="alert"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
   <form method="post" autocomplete="off">

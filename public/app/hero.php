@@ -4,7 +4,8 @@
 
 function hero_dir(): string
 {
-    return __DIR__ . '/../assets/hero';
+    // Locally each site's pictures are in sites/<site>/hero/ (dev/router.php serves them as assets/hero/).
+    return defined('SITE_DIR') ? SITE_DIR . '/hero' : __DIR__ . '/../assets/hero';
 }
 
 /** Every picture in the folder (original files only, not the -sm thumbnails). */

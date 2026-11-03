@@ -20,7 +20,7 @@ page_header('How to buy', 'how', ['description' => 'How buying a firearm works i
     <ul>
       <li>A valid California driver's license or ID card. If it isn't REAL ID compliant, also bring your valid U.S. passport or original birth certificate.</li>
       <li>A second government document showing your street address; your California vehicle registration is preferred.</li>
-      <li>A Firearm Safety Certificate (FSC). No FSC yet? Take the 25-question test at the shop: $25 ($15 state fee plus $10 processing), and you can get it the same day as your purchase.</li>
+      <li>A Firearm Safety Certificate (FSC).<?= shop('fsc_note') !== '' ? ' ' . e(shop('fsc_note')) : '' ?></li>
     </ul>
 
     <h2>4. Background check and 10-day wait</h2>

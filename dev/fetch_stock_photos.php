@@ -6,7 +6,7 @@
 //   php dev/fetch_stock_photos.php glock-g19 ...   only these slugs
 //   add --force to re-fetch photos that already exist
 //
-// Reads slugs + pages from the local DB (public/data/gun_specs.db); never writes to it. The
+// Reads slugs + pages from the local DB (sites/<SITE, default crosshairs>/data/gun_specs.db); never writes to it. The
 // finding/saving rules are shared with Admin > Firearms (public/app/stock_photos.php). Sources
 // are logged in dev/stock_photo_sources.csv. The photos are manufacturer images: kept out of
 // the public git repo (.gitignore) and uploaded with the site by deploy.ps1.
@@ -20,7 +20,7 @@ $args = array_slice($argv, 1);
 $force = in_array('--force', $args, true);
 $only = array_values(array_filter($args, fn($a) => $a !== '--force'));
 
-$db = new PDO('sqlite:' . $root . '/public/data/gun_specs.db', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$db = new PDO('sqlite:' . $root . '/sites/' . (getenv('SITE') ?: 'crosshairs') . '/data/gun_specs.db', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 $rows = array_values(array_filter(
     $db->query('SELECT slug, manufacturer, model, product_url, source_url, image_url FROM firearms ORDER BY manufacturer, model')->fetchAll(PDO::FETCH_ASSOC),
     fn($r) => stock_page_for($r) !== null && (!$only || in_array($r['slug'], $only, true))

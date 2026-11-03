@@ -21,21 +21,50 @@ This repo holds the code with **demo data only**; the shop's real inventory neve
 - Contact form with CSRF protection, honeypot and rate limiting.
 - Accessible: keyboard-reachable tooltips, 44px targets, ARIA tabs, focus-trapped photo dialog.
 
+## One codebase, several sites
+Each store demo is a **site**: same code, its own name, address, wording, database and web folder.
+Everything that differs lives in `sites/<site>/`:
+
+| File | |
+|---|---|
+| `site.php` | Web folder (`base_url`) and address. Uploaded as `app/site.php`. |
+| `shop.php` | Name, address, hours, phone, home page and About wording, demo banner. Uploaded as `app/shop.php`. |
+| `hero/` | Home page pictures (not in git). Uploaded to `assets/hero/`. |
+| `.env` | FTP login for that site's own FTP account (not in git). |
+| `config.local.php` | Admin recovery password, contact email, ip_salt (not in git); `deploy.ps1 -Config`. |
+| `live-initial.db` | First database (not in git); `deploy.ps1 -InitDb`. |
+| `data/` | Local development database (not in git). |
+
+Sites now: `crosshairs` (Crosshairs Gun Store, the-laurios.com/gun-site) and `glendale`
+(Glendale Gun Gallery, the-laurios.com/ggg). A change to the code goes to every site: deploy each
+one (`deploy.ps1 -Site <site>`). Something only one store should get belongs in its `shop.php`, or
+behind a setting there.
+
+**Adding a site:** copy `sites/glendale/site.php` + `shop.php` to `sites/<new>/` and edit them; make
+an FTP account whose home is the new web folder and put its login in `sites/<new>/.env`; run
+`SITE=<new> php -S 127.0.0.1:8765 deploy/password-tool.php` for the recovery password; build the
+first database with `php dev/new_site_db.php backups/<latest>/gun_specs.db sites/<new>/live-initial.db`
+(keeps the firearm catalog and CA roster, no listings/accounts); then
+`deploy.ps1 -Site <new>` (uploads everything the first time), `-InitDb`, `-Config`, and open
+`/<folder>/admin/` to create the first owner.
+
 ## Run it locally
 ```sh
-php dev/build_db.php demo                 # schema.sql + demo_seed.sql -> public/data/gun_specs.db
+php dev/build_db.php demo                 # schema.sql + demo_seed.sql -> sites/crosshairs/data/gun_specs.db
 php -S localhost:8000 dev/router.php      # then open http://localhost:8000/gun-site/
+SITE=glendale php -S localhost:8000 dev/router.php   # the Glendale site: http://localhost:8000/ggg/
 ```
 Needs PHP 8.1+ with `pdo_sqlite` (and `gd` for demo photos / uploads).
 
 ## Layout
 | Path | |
 |---|---|
-| `public/` | Everything deployed to the web folder (`/gun-site/`). |
+| `public/` | Everything deployed to each site's web folder (`/gun-site/`, `/ggg/`). |
+| `sites/<site>/` | What differs per site (see above). |
 | `public/app/` | PHP includes and config (blocked from the web by `.htaccess`). |
-| `public/data/` | The SQLite database (blocked from the web). |
+| `public/data/` | On the server: the SQLite database (blocked from the web). Locally each site's is in `sites/<site>/data/`. |
 | `schema.sql` | Full database schema. `demo_seed.sql` is sample data. |
 | `public/app/migrations/` | Changes to an existing (live) database, applied automatically on admin page load. |
-| `dev/` | Local tools: `build_db.php`, `router.php`, demo and stock photo scripts. |
-| `deploy/` | FTPS deploy script (`deploy.ps1`: deploy, `-Backup` the live data, `-Restore` a backup) and admin password tool. |
+| `dev/` | Local tools: `build_db.php`, `new_site_db.php`, `router.php`, demo and stock photo scripts. |
+| `deploy/` | FTPS deploy script (`deploy.ps1 -Site <site>`: deploy, `-Backup` the live data, `-Restore` a backup) and admin password tool. |
 | `design/` | Original page designs, for reference. |
