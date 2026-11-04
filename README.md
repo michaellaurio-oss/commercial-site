@@ -48,6 +48,11 @@ first database with `php dev/new_site_db.php backups/<latest>/gun_specs.db sites
 `deploy.ps1 -Site <new>` (uploads everything the first time), `-InitDb`, `-Config`, and open
 `/<folder>/admin/` to create the first owner.
 
+**Copying listings between sites** (e.g. Crosshairs' samples into Glendale): `deploy.ps1 -Site <target> -Backup`,
+then `php dev/copy_listings.php <source backup folder> backups/<target>/<that backup>` (listings on the public site,
+their photos and photo files; firearms matched by slug), then `deploy.ps1 -Site <target> -Restore <that backup>`.
+Don't use the target's admin between the backup and the restore.
+
 ## Run it locally
 ```sh
 php dev/build_db.php demo                 # schema.sql + demo_seed.sql -> sites/crosshairs/data/gun_specs.db

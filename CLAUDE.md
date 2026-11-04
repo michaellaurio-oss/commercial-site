@@ -15,6 +15,7 @@ The same code runs a demo for more than one store. **Never copy the project per 
 - `deploy.ps1` refuses to run if the server's `app/site.php` differs from `sites/<site>/site.php` (= the `.env` points at another site's FTP account).
 - Locally: `SITE=glendale php -S localhost:8000 dev/router.php` → http://localhost:8000/ggg/ (router defines `SITE_DIR`; `site_file()` in bootstrap, `hero_dir()` and config's `db_path` use it). `public/app/config.local.php` (dev secrets) and `public/photos/` are shared by all sites locally.
 - New site: `php dev/new_site_db.php <backup gun_specs.db> sites/<new>/live-initial.db` keeps firearms, CA roster, value_aliases, migrations; empties listings, photos, messages, admins, audit log, resets, login attempts.
+- Copy listings between sites: `dev/copy_listings.php <src backup> <target backup>` between the target's `-Backup` and `-Restore` (never copy a DB over a live one otherwise). Skips internal_notes/consignment and existing stock numbers.
 - Glendale was set up 2026-11-03 from glendalegungallery.com (address, hours, phone, services, ammo transfer fees; email ggguns@gmail.com deliberately not shown in the demo; no storefront photos found, so no hero pictures yet). Starting DB from `backups/20261103-1243` (787 firearms, 989 roster rows, no listings).
 
 ## Hosting, deployment & repo
