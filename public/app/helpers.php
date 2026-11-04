@@ -247,3 +247,18 @@ function phone_link(string $class = '', string $label = ''): string
         ? '<a class="' . e($class) . '" href="tel:' . e($tel) . '">' . $label . '</a>'
         : '<span class="' . e($class) . '">' . $label . '</span>';
 }
+
+/**
+ * Browser tab / home screen icon. A site can have its own (sites/<site>/favicon.png, uploaded by
+ * deploy.ps1 as assets/site-icon.png; served from sites/<site>/ locally); otherwise the shared one.
+ */
+function favicon_tags(): string
+{
+    $own = defined('SITE_DIR') ? is_file(SITE_DIR . '/favicon.png') : is_file(__DIR__ . '/../assets/site-icon.png');
+    if ($own) {
+        $u = e(asset('assets/site-icon.png'));
+        return '<link rel="icon" href="' . $u . '" type="image/png">' . "\n" . '<link rel="apple-touch-icon" href="' . $u . '">' . "\n";
+    }
+    return '<link rel="icon" href="' . e(asset('assets/favicon.svg')) . '" type="image/svg+xml">' . "\n"
+         . '<link rel="apple-touch-icon" href="' . e(asset('assets/favicon.png')) . '">' . "\n";
+}

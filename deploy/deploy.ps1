@@ -3,6 +3,7 @@ Deploy one site to the web host over FTPS (encrypted FTP). Every site runs the s
 what differs per site lives in sites\<site>\ (see README):
   site.php, shop.php     uploaded as app\site.php and app\shop.php
   hero\                  home page pictures, uploaded to assets\hero\
+  favicon.png            optional browser tab icon, uploaded as assets\site-icon.png
   .env                   that site's FTP login (FTP_USER, FTP_PASSWORD); not in git
   config.local.php       that site's admin recovery password etc. (-Config); not in git
   live-initial.db        that site's first database (-InitDb); not in git
@@ -289,11 +290,13 @@ try {
         if (($rel -match '^photos/' -and $rel -ne 'photos/.htaccess') -or $rel -match '^assets/demo/') { continue }
         if ($rel -eq 'app/config.local.php' -or $rel -match '^zz-') { continue }
         # Per-site files come from sites\<site>\ below (old copies left in public\ are ignored).
-        if ($rel -eq 'app/shop.php' -or $rel -eq 'app/site.php' -or $rel -match '^assets/hero/') { continue }
+        if ($rel -eq 'app/shop.php' -or $rel -eq 'app/site.php' -or $rel -eq 'assets/site-icon.png' -or $rel -match '^assets/hero/') { continue }
         $files += , @($f.FullName, $rel)
     }
     $files += , @((Join-Path $siteDir 'site.php'), 'app/site.php')
     $files += , @((Join-Path $siteDir 'shop.php'), 'app/shop.php')
+    $icon = Join-Path $siteDir 'favicon.png'
+    if (Test-Path $icon) { $files += , @($icon, 'assets/site-icon.png') }
     $heroDir = Join-Path $siteDir 'hero'
     if (Test-Path $heroDir) {
         Get-ChildItem -LiteralPath $heroDir -File | Where-Object { $_.Name -notlike '.*' } | ForEach-Object { $files += , @($_.FullName, ('assets/hero/' + $_.Name)) }

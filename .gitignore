@@ -9,6 +9,7 @@ sites/*/live-initial.db
 sites/*/.deploy-state.json
 sites/*/data/
 sites/*/hero/*
+sites/*/favicon.png
 
 # OS / editor
 Thumbs.db

@@ -30,6 +30,7 @@ Everything that differs lives in `sites/<site>/`:
 | `site.php` | Web folder (`base_url`) and address. Uploaded as `app/site.php`. |
 | `shop.php` | Name, address, hours, phone, home page and About wording, demo banner. Uploaded as `app/shop.php`. |
 | `hero/` | Home page pictures (not in git). Uploaded to `assets/hero/`. |
+| `favicon.png` | Optional browser tab icon (192 px). Uploaded as `assets/site-icon.png`; without it the shared icon is used. |
 | `.env` | FTP login for that site's own FTP account (not in git). |
 | `config.local.php` | Admin recovery password, contact email, ip_salt (not in git); `deploy.ps1 -Config`. |
 | `live-initial.db` | First database (not in git); `deploy.ps1 -InitDb`. |

@@ -32,8 +32,7 @@ function page_header(string $title, string $active = '', array $opts = []): void
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="<?= e(asset('assets/favicon.svg')) ?>" type="image/svg+xml">
-<link rel="apple-touch-icon" href="<?= e(asset('assets/favicon.png')) ?>">
+<?= favicon_tags() ?>
 <title><?= e($fullTitle) ?></title>
 <?php if (!empty($opts['description'])): ?><meta name="description" content="<?= e($opts['description']) ?>">
 <?php endif; ?>

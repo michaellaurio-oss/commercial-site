@@ -34,6 +34,17 @@ if (preg_match('~^(app|data)(/|$)~', $rel) || preg_match('~(^|/)[._]~', $rel)) {
     return true;
 }
 
+if ($rel === 'assets/site-icon.png') {
+    // This site's own tab icon, if it has one.
+    if (is_file(SITE_DIR . '/favicon.png')) {
+        header('Content-Type: image/png');
+        readfile(SITE_DIR . '/favicon.png');
+        return true;
+    }
+    http_response_code(404);
+    echo 'Not found';
+    return true;
+}
 if (strpos($rel, 'assets/hero/') === 0) {
     // This site's home page pictures.
     $file = realpath(SITE_DIR . '/hero/' . substr($rel, strlen('assets/hero/')));
