@@ -73,17 +73,24 @@ function Invoke-Curl([string[]]$curlArgs) {
     & $curl @common @curlArgs
     if ($LASTEXITCODE -ne 0) { throw "curl failed (exit $LASTEXITCODE)" }
 }
+# A missing remote folder (e.g. assets/hero/ on a site with no home page pictures) counts as empty.
+# 'Continue' while curl runs: with 'Stop', Windows PowerShell 5.1 turns curl's "can't change to that
+# directory" message into a terminating error even though stderr is redirected (2026-11-03).
 function Get-RemoteList([string]$dir) {
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $out = & $curl @common '--list-only' ($base + $dir) 2>$null
-    if ($LASTEXITCODE -ne 0) { return @() }
+    $code = $LASTEXITCODE; $ErrorActionPreference = $eap
+    if ($code -ne 0) { return @() }
     return @($out | Where-Object { $_ -and $_ -ne '.' -and $_ -ne '..' })
 }
 
 # Name -> size of the files (and folders, with -Dirs) in a remote folder, from the FTP LIST output.
 function Get-RemoteSizes([string]$dir, [switch]$Dirs) {
+    $eap = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
     $out = & $curl @common ($base + $dir) 2>$null
+    $code = $LASTEXITCODE; $ErrorActionPreference = $eap
     $map = @{}
-    if ($LASTEXITCODE -ne 0) { return $map }
+    if ($code -ne 0) { return $map }
     foreach ($line in $out) {
         if ($line -match '^(?<t>[-dl])\S*\s+\d+\s+\S+\s+\S+\s+(?<size>\d+)\s+\w{3}\s+\d+\s+[\d:]+\s+(?<name>.+)$') {
             $name = $matches['name']
